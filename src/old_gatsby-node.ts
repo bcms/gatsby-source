@@ -8,12 +8,38 @@ import { Media, SocketEventName } from '@becomes/cms-client';
 import {
   BCMSMostCacheContentItem,
   BCMSMostConfig,
+  BCMSMostConfigEntryModifyFunction,
+  BCMSMostConfigSchema,
 } from '@becomes/cms-most/types';
-import { BCMSMost, BCMSMostPrototype } from '@becomes/cms-most';
+import {
+  BCMSMost,
+  BCMSMostImageHandler,
+  BCMSMostPrototype,
+  Console,
+  FS,
+  General,
+} from '@becomes/cms-most';
 
-let config: BCMSMostConfig;
-let bcmsMost: BCMSMostPrototype;
+const nameMapping: {
+  [name: string]: {
+    entryIds: string[];
+    modify?: BCMSMostConfigEntryModifyFunction<any, any, any>;
+  };
+} = {};
+let options: BCMSMostConfig;
+let BcmsMost: BCMSMostPrototype;
 
+function getBCMSMost() {
+  if (!BcmsMost) {
+    BcmsMost = BCMSMost({
+      cms: options.cms,
+      functions: options.functions,
+      entries: options.entries,
+      media: options.media,
+    });
+  }
+  return BcmsMost;
+}
 function toCamelCase(s: string): string {
   return s
     .split('_')
@@ -75,7 +101,7 @@ export async function onPreInit<T>(
   ops: BCMSMostConfig,
 ): Promise<void> {
   try {
-    config = {
+    options = {
       cms: ops.cms,
       entries: ops.entries ? ops.entries : [],
       functions: ops.functions ? ops.functions : [],
@@ -105,9 +131,43 @@ export async function onPreInit<T>(
             ],
           },
     };
-    bcmsMost = BCMSMost(config);
-    bcmsMost.pipe.initialize(8001, async (name) => {
+    General.object.compareWithSchema(options, BCMSMostConfigSchema, 'options');
+    const bcmsMost = getBCMSMost();
+    await bcmsMost.content.pull();
+    await bcmsMost.media.pull();
+    // await bcmsMost.media.process();
+    await bcmsMost.client.socket.connect({
+      url: ops.cms.origin,
+      path: '/api/socket/server/',
+    });
+    bcmsMost.client.socket.subscribe(async (name, data) => {
       if (name === SocketEventName.ENTRY) {
+        let entry = await bcmsMost.client.entry.get({
+          entryId: data.entry._id,
+          templateId: data.entry.additional.templateId,
+          parse: true,
+        });
+        const cache = await bcmsMost.cache.get.content();
+        for (const key in nameMapping) {
+          if (nameMapping[key].entryIds.includes(entry._id)) {
+            if (nameMapping[key].modify) {
+              const temp = JSON.parse(JSON.stringify(entry));
+              entry = await nameMapping[key].modify(entry as any, cache);
+              entry._id = temp._id;
+              entry.createdAt = temp.createdAt;
+              entry.updatedAt = temp.updatedAt;
+              entry.templateId = temp.templateId;
+            }
+            cache[key] = cache[key].map((e) => {
+              if (e._id === entry._id) {
+                e = entry;
+              }
+              return e;
+            });
+            break;
+          }
+        }
+        await bcmsMost.cache.update.content(cache);
         await new Promise<void>((resolve, reject) => {
           http.get(
             'http://localhost:8000/__refresh',
@@ -125,6 +185,7 @@ export async function onPreInit<T>(
         });
       }
     });
+    bcmsMost.image.startServer();
   } catch (error) {
     console.error(error);
     process.exit(1);
@@ -136,11 +197,24 @@ export async function sourceNodes({
   createContentDigest,
 }) {
   try {
+    const bcmsMost = getBCMSMost();
     const cache = await bcmsMost.cache.get.content();
     const { createNode } = actions;
     for (const key in cache) {
+      if (!nameMapping[key]) {
+        nameMapping[key] = {
+          entryIds: [],
+        };
+      }
       const cacheData = cache[key];
+      const modifyFn = options.entries.find(
+        (e) => e.templateId === cacheData[0].templateId,
+      );
+      if (modifyFn && modifyFn.modify) {
+        nameMapping[key].modify = modifyFn.modify;
+      }
       cacheData.forEach((data) => {
+        nameMapping[key].entryIds.push(data._id);
         createSource(key, data, createNodeId, createContentDigest, createNode);
       });
     }
@@ -159,8 +233,9 @@ export async function sourceNodes({
     process.exit(1);
   }
 }
-export async function createResolvers({ createResolvers }) {
+exports.createResolvers = async ({ createResolvers }) => {
   try {
+    const bcmsMost = getBCMSMost();
     const tempCache = await bcmsMost.cache.get.content();
     const resolvers: {
       [name: string]: {
@@ -197,11 +272,84 @@ export async function createResolvers({ createResolvers }) {
     console.error(error);
     process.exit(1);
   }
-}
-export async function onPostBuild() {
-  await bcmsMost.pipe.postBuild('public', 8001);
+};
+
+async function postBuild(relativePath: string) {
+  const imageHandle = BCMSMostImageHandler(options);
+  imageHandle.startWatch();
+  const cnsl = Console('BCMSMostGatsbyPostBuild');
+  cnsl.info('', 'Processing images...');
+  const basePath = path.join(process.cwd(), 'bcms', relativePath);
+  const pages = (await FS.getHtmlFiles(relativePath)).map((e) =>
+    e.replace(basePath, '').substring(1),
+  );
+  const sources: string[] = [];
+  const sourcesBuffer: {
+    [path: string]: boolean;
+  } = {};
+  const done: boolean[] = [];
+  for (const i in pages) {
+    const page = (
+      await FS.read([...relativePath.split('/'), ...pages[i].split('/')])
+    ).toString();
+    const pictures = General.string.getAllTextBetween(
+      page,
+      'class="bcms-img',
+      '</div>',
+    );
+    for (const j in pictures) {
+      if (
+        General.string.getTextBetween(pictures[j], '<picture', '</picture>')
+      ) {
+        const source = General.string.getAllTextBetween(
+          pictures[j],
+          'srcSet="',
+          '"',
+        )[1];
+        if (source) {
+          sourcesBuffer[source] = true;
+        } else {
+          cnsl.warn(pages[i], 'No source.');
+        }
+      }
+    }
+  }
+  for (const src in sourcesBuffer) {
+    sources.push(src);
+  }
+  cnsl.info('', sources);
+  await new Promise<void>((resolve) => {
+    for (const i in sources) {
+      const src = sources[i];
+      imageHandle
+        .resolver({
+          method: 'POST',
+          options: src.split('/')[2],
+          originalPath: src,
+          path: '/' + src.split('/').slice(3).join('/'),
+        })
+        .then(() => {
+          cnsl.info('', `${done.length}, ${sources.length}`);
+          done.push(true);
+          if (done.length === sources.length) {
+            resolve();
+          }
+        })
+        .catch((error) => {
+          cnsl.error(src, error);
+          done.push(true);
+          if (done.length === sources.length) {
+            resolve();
+          }
+        });
+    }
+  });
   await fse.copy(
     path.join(process.cwd(), 'static', 'media'),
     path.join(process.cwd(), 'public', 'media'),
   );
 }
+
+exports.onPostBuild = async () => {
+  await postBuild('../public');
+};
