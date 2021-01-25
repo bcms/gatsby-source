@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as fse from 'fs-extra';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as util from 'util';
 import * as crypto from 'crypto';
@@ -202,7 +203,7 @@ export async function createResolvers({ createResolvers }) {
 export async function onPostBuild() {
   await bcmsMost.pipe.postBuild('public', 8001);
   if (
-    await util.promisify(fse.exists)(
+    await util.promisify(fs.exists)(
       path.join(process.cwd(), 'static', 'media'),
     )
   ) {
