@@ -2,6 +2,7 @@
 
 import * as fse from 'fs-extra';
 import * as path from 'path';
+import * as util from 'util';
 import * as crypto from 'crypto';
 import * as http from 'http';
 import { Media, SocketEventName } from '@becomes/cms-client';
@@ -200,8 +201,14 @@ export async function createResolvers({ createResolvers }) {
 }
 export async function onPostBuild() {
   await bcmsMost.pipe.postBuild('public', 8001);
-  await fse.copy(
-    path.join(process.cwd(), 'static', 'media'),
-    path.join(process.cwd(), 'public', 'media'),
-  );
+  if (
+    await util.promisify(fse.exists)(
+      path.join(process.cwd(), 'static', 'media'),
+    )
+  ) {
+    await fse.copy(
+      path.join(process.cwd(), 'static', 'media'),
+      path.join(process.cwd(), 'public', 'media'),
+    );
+  }
 }
