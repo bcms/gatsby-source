@@ -199,7 +199,7 @@ export async function createResolvers({ createResolvers }) {
   }
 }
 export async function onPostBuild() {
-  await bcmsMost.pipe.postBuild('public', 8001);
+  await bcmsMost.pipe.postBuild('../public', 8001);
   await fse.copy(
     path.join(process.cwd(), 'static', 'media'),
     path.join(process.cwd(), 'public', 'media'),
