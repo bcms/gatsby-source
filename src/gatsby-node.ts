@@ -108,7 +108,7 @@ export async function onPreInit<T>(
           },
     };
     bcmsMost = BCMSMost(config);
-    bcmsMost.pipe.initialize(8001, async (name) => {
+    await bcmsMost.pipe.initialize(8001, async (name) => {
       if (name === SocketEventName.ENTRY) {
         await new Promise<void>((resolve, reject) => {
           http.get(
@@ -143,6 +143,7 @@ export async function sourceNodes({
     for (const key in cache) {
       const cacheData = cache[key];
       cacheData.forEach((data) => {
+        console.log(data);
         createSource(key, data, createNodeId, createContentDigest, createNode);
       });
     }
@@ -178,7 +179,7 @@ export async function createResolvers({ createResolvers }) {
               .replace('Bcms', '')
               .split(/(?=[A-Z])/)
               .map((e) => e.toLowerCase())
-              .join('');
+              .join('_');
             const target = JSON.parse(source.internal.content).data;
             const output = cache[type].find((e) => e._id === target._id) as any;
             for (const lng in output.content) {
