@@ -21,10 +21,14 @@ function toCamelCase(s: string): string {
     .split('_')
     .map(
       (e) =>
-        `${e.substring(0, 1).toUpperCase()}${e.substring(1).toLowerCase()}`,
+        `${e.substring(
+          0,
+          1,
+        ).toUpperCase()}${e.substring(1).toLowerCase()}`,
     )
     .join('');
 }
+
 function createSource(
   name: string,
   _data: BCMSMostCacheContentItem | Media[],
@@ -48,14 +52,14 @@ function createSource(
     const nodeMeta = {
       id:
         data.data instanceof Array
-          ? crypto.randomBytes(24).toString('hex')
-          : createNodeId(
-              `${name}-${
-                data.data._id
-                  ? data.data._id
-                  : crypto.randomBytes(24).toString('hex')
-              }`,
-            ),
+        ? crypto.randomBytes(24).toString('hex')
+        : createNodeId(
+          `${name}-${
+            data.data._id
+            ? data.data._id
+            : crypto.randomBytes(24).toString('hex')
+          }`,
+        ),
       parent: null,
       internal: {
         type: 'Bcms' + toCamelCase(name),
@@ -64,7 +68,11 @@ function createSource(
         contentDigest: createContentDigest(data),
       },
     };
-    const node = Object.assign({}, data, nodeMeta);
+    const node = Object.assign(
+      {},
+      data,
+      nodeMeta,
+    );
     createNode(node);
   } catch (error) {
     console.error(error);
@@ -82,56 +90,62 @@ export async function onPreInit<T>(
       entries: ops.entries ? ops.entries : [],
       functions: ops.functions ? ops.functions : [],
       media: ops.media
-        ? ops.media
-        : {
-            output: 'static/media',
-            sizeMap: [
-              {
-                width: 350,
-              },
-              {
-                width: 600,
-              },
-              {
-                width: 900,
-              },
-              {
-                width: 1200,
-              },
-              {
-                width: 1400,
-              },
-              {
-                width: 1920,
-              },
-            ],
-          },
+             ? ops.media
+             : {
+          output: 'static/media',
+          sizeMap: [
+            {
+              width: 350,
+            },
+            {
+              width: 600,
+            },
+            {
+              width: 900,
+            },
+            {
+              width: 1200,
+            },
+            {
+              width: 1400,
+            },
+            {
+              width: 1920,
+            },
+          ],
+        },
     };
     bcmsMost = BCMSMost(config);
-    await bcmsMost.pipe.initialize(8001, async (name) => {
-      if (name === SocketEventName.ENTRY) {
-        await new Promise<void>((resolve, reject) => {
-          http.get(
-            'http://localhost:8000/__refresh',
-            {
-              method: 'POST',
-            },
-            (res) => {
-              if (res.statusCode !== 200) {
-                reject(res);
-              } else {
-                resolve();
-              }
-            },
-          );
-        });
-      }
-    });
+    await bcmsMost.pipe.initialize(
+      8001,
+      async (name, data) => {
+        if (name === SocketEventName.ENTRY) {
+          if (data.type === 'update') {
+            await new Promise<void>((resolve, reject) => {
+              http.get(
+                'http://localhost:8000/__refresh',
+                {
+                  method: 'POST',
+                },
+                (res) => {
+                  if (res.statusCode !== 200) {
+                    reject(res);
+                  } else {
+                    resolve();
+                  }
+                },
+              );
+            });
+          }
+        }
+      },
+    );
   } catch (error) {
     console.error(error);
     process.exit(1);
   }
 }
+
 export async function sourceNodes({
   actions,
   createNodeId,
@@ -144,7 +158,13 @@ export async function sourceNodes({
       const cacheData = cache[key];
       cacheData.forEach((data) => {
         console.log(data);
-        createSource(key, data, createNodeId, createContentDigest, createNode);
+        createSource(
+          key,
+          data,
+          createNodeId,
+          createContentDigest,
+          createNode,
+        );
       });
     }
     const mediaCache = await bcmsMost.cache.get.media();
@@ -162,6 +182,7 @@ export async function sourceNodes({
     process.exit(1);
   }
 }
+
 export async function createResolvers({ createResolvers }) {
   try {
     const tempCache = await bcmsMost.cache.get.content();
@@ -175,8 +196,13 @@ export async function createResolvers({ createResolvers }) {
         data: {
           async resolve(source: any) {
             const cache = await bcmsMost.cache.get.content();
-            const type = (source.internal.type as string)
-              .replace('Bcms', '')
+            const type = (
+              source.internal.type as string
+            )
+              .replace(
+                'Bcms',
+                '',
+              )
               .split(/(?=[A-Z])/)
               .map((e) => e.toLowerCase())
               .join('_');
@@ -201,16 +227,32 @@ export async function createResolvers({ createResolvers }) {
     process.exit(1);
   }
 }
+
 export async function onPostBuild() {
-  await bcmsMost.pipe.postBuild('public', 8001);
+  await bcmsMost.pipe.postBuild(
+    'public',
+    8001,
+  );
   if (
     await util.promisify(fs.exists)(
-      path.join(process.cwd(), 'static', 'media'),
+      path.join(
+        process.cwd(),
+        'static',
+        'media',
+      ),
     )
   ) {
     await fse.copy(
-      path.join(process.cwd(), 'static', 'media'),
-      path.join(process.cwd(), 'public', 'media'),
+      path.join(
+        process.cwd(),
+        'static',
+        'media',
+      ),
+      path.join(
+        process.cwd(),
+        'public',
+        'media',
+      ),
     );
   }
 }
