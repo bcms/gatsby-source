@@ -157,7 +157,6 @@ export async function sourceNodes({
     for (const key in cache) {
       const cacheData = cache[key];
       cacheData.forEach((data) => {
-        console.log(data);
         createSource(
           key,
           data,
