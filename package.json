@@ -1,6 +1,6 @@
 {
   "name": "gatsby-source-bcms",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Implementation of the @becomes/cms-most for Gatsby framework.",
   "author": "becomes.co",
   "license": "MIT",
@@ -15,9 +15,7 @@
     "unlink:sudo": "npm-tool --unlink --sudo",
     "lint": "eslint src/**/*"
   },
-  "dependencies": {
-    "@banez/fs": "^1.0.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@banez/npm-tool": "^1.1.0",
     "@becomes/cms-client": "^3.1.2",
