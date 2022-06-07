@@ -93,7 +93,6 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
       }
     }
     const nodeContent = JSON.stringify(myData);
-    console.log(name, myData);
     const nodeMeta = {
       id: createNodeId(`${name}-${data._id}`),
       parent: null,
@@ -117,7 +116,6 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
       ) as BCMSEntryParsed[];
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        console.log('T --->', templateName);
         createSource(templateName, entry);
       }
     }
