@@ -1,20 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import * as fse from 'fs-extra';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as util from 'util';
-import * as crypto from 'crypto';
-import * as http from 'http';
-import { Media, SocketEventName } from '@becomes/cms-client';
-import {
-  BCMSMostCacheContentItem,
+/* eslint-disable no-console */
+import type { BCMSEntryParsed } from '@becomes/cms-client/types';
+import type {
+  BCMSMediaExtended,
   BCMSMostConfig,
 } from '@becomes/cms-most/types';
-import { BCMSMost, BCMSMostPrototype } from '@becomes/cms-most';
-
-let config: BCMSMostConfig;
-let bcmsMost: BCMSMostPrototype;
+import type {
+  CreateResolversArgs,
+  CreateSchemaCustomizationArgs,
+  GatsbyNode,
+} from 'gatsby';
+import { getBcmsMost, __createBcmsMost } from './main';
 
 function toCamelCase(s: string): string {
   return s
@@ -26,169 +21,154 @@ function toCamelCase(s: string): string {
     .join('');
 }
 
-function createSource(
-  name: string,
-  _data: BCMSMostCacheContentItem | Media[],
-  createNodeId: any,
-  createContentDigest: any,
-  createNode: any,
-) {
+export const onPreInit: <T>(
+  data: T,
+  config: BCMSMostConfig,
+) => Promise<void> = async (_data, config) => {
   try {
-    const data = { data: _data as any };
-    for (const lng in data.data.content) {
-      data.data.content[lng] = data.data.content[lng].map((e: any) => {
-        if (typeof e.value !== 'string') {
-          e.value = Buffer.from(
-            encodeURIComponent(JSON.stringify(e.value)),
-          ).toString('base64');
+    await __createBcmsMost(config);
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
+  }
+};
+
+export const createSchemaCustomization = async ({
+  actions,
+}: CreateSchemaCustomizationArgs) => {
+  const { createTypes } = actions;
+  const most = getBcmsMost();
+  const result = await most.client.typeConverter.getAll({ language: 'gql' });
+  for (let i = 0; i < result.length; i++) {
+    const item = result[i];
+    createTypes(item.content.replace(/Entry /g, 'Entry @dontInfer '));
+  }
+  const templates = await most.cache.template.get();
+  for (let i = 0; i < templates.length; i++) {
+    const template = templates[i];
+    createTypes(
+      [
+        `type Bcms${toCamelCase(template.name)}Template implements Node {`,
+        `  bcms: ${toCamelCase(template.name)}Template`,
+        '}',
+      ].join('\n'),
+    );
+    createTypes(
+      [
+        `type Bcms${toCamelCase(template.name)} implements Node {`,
+        `  bcms: ${toCamelCase(template.name)}Entry`,
+        '}',
+      ].join('\n'),
+    );
+  }
+  createTypes(
+    [`type BcmsMedia implements Node {`, `  bcms: BCMSMediaExtended`, '}'].join(
+      '\n',
+    ),
+  );
+};
+
+export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
+  actions,
+  createNodeId,
+  createContentDigest,
+}) => {
+  const most = getBcmsMost();
+
+  function createSource(
+    name: string,
+    data: BCMSEntryParsed | BCMSMediaExtended,
+  ) {
+    const myData = { bcms: data };
+    if ((data as BCMSEntryParsed).content) {
+      const dataContent = (data as BCMSEntryParsed).content;
+      for (const lng in dataContent) {
+        const content = dataContent[lng];
+        for (let i = 0; i < content.length; i++) {
+          const item = content[i];
+          if (typeof item.value === 'object') {
+            item.value = JSON.stringify(item.value);
+          }
         }
-        return e;
-      });
+      }
     }
-    const nodeContent = JSON.stringify(data);
+    const nodeContent = JSON.stringify(myData);
+    console.log(name, myData);
     const nodeMeta = {
-      id:
-        data.data instanceof Array
-          ? crypto.randomBytes(24).toString('hex')
-          : createNodeId(
-              `${name}-${
-                data.data._id
-                  ? data.data._id
-                  : crypto.randomBytes(24).toString('hex')
-              }`,
-            ),
+      id: createNodeId(`${name}-${data._id}`),
       parent: null,
+      children: [],
       internal: {
         type: 'Bcms' + toCamelCase(name),
         mediaType: `application/json`,
         content: nodeContent,
-        contentDigest: createContentDigest(data),
+        contentDigest: createContentDigest(myData),
       },
     };
-    const node = Object.assign({}, data, nodeMeta);
-    createNode(node);
-  } catch (error) {
-    console.error(error);
-    process.exit(1);
+    const node = Object.assign({}, myData, nodeMeta);
+    actions.createNode(node);
   }
-}
 
-export async function onPreInit<T>(
-  data: T,
-  ops: BCMSMostConfig,
-): Promise<void> {
   try {
-    config = {
-      cms: ops.cms,
-      entries: ops.entries ? ops.entries : [],
-      functions: ops.functions ? ops.functions : [],
-      media: ops.media
-        ? ops.media
-        : {
-            output: 'static/media',
-            sizeMap: [
-              {
-                width: 350,
-              },
-              {
-                width: 600,
-              },
-              {
-                width: 900,
-              },
-              {
-                width: 1200,
-              },
-              {
-                width: 1400,
-              },
-              {
-                width: 1920,
-              },
-            ],
-          },
-    };
-    bcmsMost = BCMSMost(config);
-    await bcmsMost.pipe.initialize(8001, async (name, data) => {
-      if (name === SocketEventName.ENTRY) {
-        if (data.type === 'update') {
-          await new Promise<void>((resolve, reject) => {
-            http.get(
-              'http://localhost:8000/__refresh',
-              {
-                method: 'POST',
-              },
-              (res) => {
-                if (res.statusCode !== 200) {
-                  reject(res);
-                } else {
-                  resolve();
-                }
-              },
-            );
-          });
-        }
+    const entriesData = await most.cache.content.get();
+    for (const templateName in entriesData) {
+      const entries = JSON.parse(
+        JSON.stringify(entriesData[templateName]),
+      ) as BCMSEntryParsed[];
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        console.log('T --->', templateName);
+        createSource(templateName, entry);
       }
-    });
-  } catch (error) {
-    console.error(error);
-    process.exit(1);
-  }
-}
-
-export async function sourceNodes({
-  actions,
-  createNodeId,
-  createContentDigest,
-}) {
-  try {
-    const cache = await bcmsMost.cache.get.content();
-    const { createNode } = actions;
-    for (const key in cache) {
-      const cacheData = cache[key];
-      cacheData.forEach((data) => {
-        createSource(key, data, createNodeId, createContentDigest, createNode);
-      });
     }
-    const mediaCache = await bcmsMost.cache.get.media();
-    if (mediaCache.length > 0) {
-      createSource(
-        'media',
-        mediaCache,
-        createNodeId,
-        createContentDigest,
-        createNode,
-      );
+    const mediaData = await most.cache.media.get();
+    for (let i = 0; i < mediaData.items.length; i++) {
+      const media = mediaData.items[i];
+      createSource('media', media);
     }
   } catch (error) {
     console.error(error);
     process.exit(1);
   }
-}
+};
 
-export async function createResolvers({ createResolvers }) {
+export async function createResolvers(args: CreateResolversArgs) {
+  const most = getBcmsMost();
+
   try {
-    const tempCache = await bcmsMost.cache.get.content();
+    const tempCache = await most.cache.content.get();
+
     const resolvers: {
       [name: string]: {
-        data: any;
+        type?: string;
+        bcms?: unknown;
+        resolve?: any;
       };
     } = {};
-    for (const key in tempCache) {
-      resolvers[`Bcms${toCamelCase(key)}`] = {
-        data: {
+    for (const templateName in tempCache) {
+      const nameEncoded = `${toCamelCase(templateName)}`;
+      resolvers[`Bcms${nameEncoded}`] = {
+        bcms: {
+          type: nameEncoded + 'Entry',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           async resolve(source: any) {
-            const cache = await bcmsMost.cache.get.content();
             const type = (source.internal.type as string)
               .replace('Bcms', '')
               .split(/(?=[A-Z])/)
               .map((e) => e.toLowerCase())
               .join('_');
-            const target = JSON.parse(source.internal.content).data;
-            const output = cache[type].find((e) => e._id === target._id) as any;
+            const target = JSON.parse(source.internal.content).bcms;
+            const output = JSON.parse(
+              JSON.stringify(
+                await most.cache.content.findOneInGroup(
+                  type,
+                  (e) => e._id === target._id,
+                ),
+              ),
+            ) as BCMSEntryParsed;
             for (const lng in output.content) {
-              output.content[lng] = output.content[lng].map((e: any) => {
-                if (typeof e.value !== 'string') {
+              output.content[lng].forEach((e) => {
+                if (typeof e.value === 'object') {
                   e.value = JSON.stringify(e.value);
                 }
                 return e;
@@ -199,7 +179,7 @@ export async function createResolvers({ createResolvers }) {
         },
       };
     }
-    createResolvers(resolvers);
+    args.createResolvers(resolvers);
   } catch (error) {
     console.error(error);
     process.exit(1);
@@ -207,13 +187,8 @@ export async function createResolvers({ createResolvers }) {
 }
 
 export async function onPostBuild() {
-  await bcmsMost.pipe.postBuild('public', undefined);
-  if (
-    await util.promisify(fs.exists)(path.join(process.cwd(), 'static', 'media'))
-  ) {
-    await fse.copy(
-      path.join(process.cwd(), 'static', 'media'),
-      path.join(process.cwd(), 'public', 'media'),
-    );
-  }
+  const most = getBcmsMost();
+  await most.imageProcessor.postBuild({
+    buildOutput: ['public'],
+  });
 }
