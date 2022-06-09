@@ -2,20 +2,17 @@
   "compilerOptions": {
     "module": "commonjs",
     "declaration": true,
-    "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "declarationMap": false,
     "target": "es5",
     "jsx": "react",
-    "sourceMap": true,
+    "sourceMap": false,
     "outDir": "./dist",
     "baseUrl": "./",
-    "incremental": true
+    "rootDir": "./src",
+    "importsNotUsedAsValues": "error",
+    "skipLibCheck": true
   },
-  "typedocOptions": {
-    "mode": "file",
-    "out": "doc"
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "public", "lib"]
+  "include": ["src"]
 }
