@@ -2,7 +2,6 @@ import type { BCMSMediaParsed } from '@becomes/cms-client/types';
 import type { BCMSMostImageProcessorProcessOptions } from '@becomes/cms-most/types';
 import { createBcmsImageHandler } from '@becomes/cms-most/frontend';
 import * as React from 'react';
-import { BCMSImageConfig } from './_config';
 import { output } from '@becomes/cms-most/frontend/_output-path';
 
 interface Props {
@@ -11,6 +10,7 @@ interface Props {
   style?: React.CSSProperties;
   id?: string;
   options?: BCMSMostImageProcessorProcessOptions;
+  svg?: boolean;
 }
 
 const BCMSImage: React.FC<Props> = ({
@@ -19,6 +19,7 @@ const BCMSImage: React.FC<Props> = ({
   className,
   id,
   style,
+  svg,
 }) => {
   const handler = createBcmsImageHandler(media, options);
   const [srcSet, setSrcSet] = React.useState(handler.getSrcSet());
@@ -59,46 +60,30 @@ const BCMSImage: React.FC<Props> = ({
       data-bcms-img-ops={handler.optionString}
       data-bcms-img-idx={srcSet[4]}
     >
-      {BCMSImageConfig.localeImageProcessing ? (
-        <>
-          {handler.parsable ? (
-            <picture>
-              <source srcSet={srcSet[0]} />
-              <source srcSet={srcSet[1]} />
-              <img
-                data-bcms-image={handler.optionString + ';' + media.src}
-                src={output + media.src}
-                alt={media.alt_text}
-                width={srcSet[2]}
-                height={srcSet[3]}
-              />
-            </picture>
-          ) : (
+      <>
+        {handler.parsable ? (
+          <picture>
+            <source srcSet={srcSet[0]} />
+            <source srcSet={srcSet[1]} />
             <img
-              src={srcSet[0]}
+              data-bcms-image={handler.optionString + ';' + media.src}
+              src={output + media.src}
               alt={media.alt_text}
-              width={media.width}
-              height={media.height}
+              width={srcSet[2]}
+              height={srcSet[3]}
             />
-          )}
-        </>
-      ) : (
-        <picture>
-          <source
-            srcSet={`${BCMSImageConfig.cmsOrigin}/api/media/${media._id}/bin/${BCMSImageConfig.publicApiKeyId}?ops=${handler.optionString}&idx=${srcSet[4]}&webp=true`}
-          />
-          <source
-            srcSet={`${BCMSImageConfig.cmsOrigin}/api/media/${media._id}/bin/${BCMSImageConfig.publicApiKeyId}?ops=${handler.optionString}&idx=${srcSet[4]}`}
-          />
+          </picture>
+        ) : svg && media.svg ? (
+          <div dangerouslySetInnerHTML={{ __html: media.svg }} />
+        ) : (
           <img
-            data-bcms-image={handler.optionString + ';' + media.src}
-            src={`${BCMSImageConfig.cmsOrigin}/api/media/${media._id}/bin/${BCMSImageConfig.publicApiKeyId}?ops=${handler.optionString}&idx=${srcSet[4]}`}
+            src={srcSet[1]}
             alt={media.alt_text}
-            width={srcSet[2]}
-            height={srcSet[3]}
+            width={media.width}
+            height={media.height}
           />
-        </picture>
-      )}
+        )}
+      </>
     </div>
   );
 };
