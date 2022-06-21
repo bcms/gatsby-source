@@ -1,6 +1,6 @@
 {
   "name": "gatsby-source-bcms",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Implementation of the @becomes/cms-most for Gatsby framework.",
   "author": "becomes.co",
   "license": "MIT",
