@@ -41,7 +41,13 @@ export const createSchemaCustomization = async ({
   const result = await most.client.typeConverter.getAll({ language: 'gql' });
   for (let i = 0; i < result.length; i++) {
     const item = result[i];
-    createTypes(item.content.replace(/Entry /g, 'Entry @dontInfer '));
+    createTypes(
+      item.content
+        .replace(/Entry /g, 'Entry @dontInfer ')
+        .replace(/@dontInfer \|/g, '|')
+        .replace(/!,/g, '\n')
+        .replace(/!!/g, '!'),
+    );
   }
   const templates = await most.cache.template.get();
   for (let i = 0; i < templates.length; i++) {
@@ -86,7 +92,9 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
         const content = dataContent[lng];
         for (let i = 0; i < content.length; i++) {
           const item = content[i];
+          (item as any).isObject = false;
           if (typeof item.value === 'object') {
+            (item as any).isObject = true;
             item.value = JSON.stringify(item.value);
           }
         }
