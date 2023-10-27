@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 import type { BCMSEntryParsed } from '@becomes/cms-client/types';
 import type {
@@ -10,6 +11,7 @@ import type {
   GatsbyNode,
 } from 'gatsby';
 import { getBcmsMost, __createBcmsMost } from './main';
+import { StringUtility } from '@banez/string-utility';
 
 function toCamelCase(s: string): string {
   return s
@@ -17,6 +19,20 @@ function toCamelCase(s: string): string {
     .map(
       (e) =>
         `${e.substring(0, 1).toUpperCase()}${e.substring(1).toLowerCase()}`,
+    )
+    .join('');
+}
+
+function toCamelCaseLower(s: string): string {
+  return s
+    .split('_')
+    .map(
+      (e, i) =>
+        `${
+          i === 0
+            ? e.substring(0, 1).toLowerCase()
+            : e.substring(0, 1).toUpperCase()
+        }${e.substring(1).toLowerCase()}`,
     )
     .join('');
 }
@@ -41,13 +57,12 @@ export const createSchemaCustomization = async ({
   const result = await most.client.typeConverter.getAll({ language: 'gql' });
   for (let i = 0; i < result.length; i++) {
     const item = result[i];
-    createTypes(
-      item.content
-        .replace(/Entry /g, 'Entry @dontInfer ')
-        .replace(/@dontInfer \|/g, '|')
-        .replace(/!,/g, '\n')
-        .replace(/!!/g, '!'),
-    );
+    const typeString = item.content
+      .replace(/Entry /g, 'Entry @dontInfer ')
+      .replace(/@dontInfer \|/g, '|')
+      .replace(/!,/g, '\n')
+      .replace(/!!/g, '!');
+    createTypes(typeString);
   }
   const templates = await most.cache.template.get();
   for (let i = 0; i < templates.length; i++) {
@@ -92,15 +107,31 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
         const content = dataContent[lng];
         for (let i = 0; i < content.length; i++) {
           const item = content[i];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (item as any).isObject = false;
           if (typeof item.value === 'object') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (item as any).isObject = true;
             item.value = JSON.stringify(item.value);
           }
         }
       }
     }
-    const nodeContent = JSON.stringify(myData);
+    let nodeContent = JSON.stringify(myData);
+    const templateNames = StringUtility.allTextBetween(
+      nodeContent,
+      'templateName":"',
+      '",',
+    );
+    for (let i = 0; i < templateNames.length; i++) {
+      const templateName = templateNames[i];
+      nodeContent = nodeContent.replace(
+        `templateName":"${templateName}",`,
+        `templateName":"${templateName}","__typename":"${toCamelCase(
+          templateName,
+        )}Entry","type":"${toCamelCase(templateName)}Entry",`,
+      );
+    }
     const nodeMeta = {
       id: createNodeId(`${name}-${data._id}`),
       parent: null,
@@ -138,6 +169,28 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
   }
 };
 
+function resolveEntryPointerArray(obj: any) {
+  for (const key in obj) {
+    if (typeof obj[key] === 'object') {
+      if (
+        obj[key] instanceof Array &&
+        obj[key][0] &&
+        obj[key][0].templateName
+      ) {
+        for (let i = 0; i < obj[key].length; i++) {
+          const childObj = obj[key][i];
+          resolveEntryPointerArray(childObj);
+          const mutated: any = {};
+          mutated[toCamelCaseLower(childObj.templateName)] = childObj;
+          obj[key][i] = mutated;
+        }
+      } else {
+        resolveEntryPointerArray(obj[key]);
+      }
+    }
+  }
+}
+
 export async function createResolvers(args: CreateResolversArgs) {
   const most = getBcmsMost();
 
@@ -148,6 +201,7 @@ export async function createResolvers(args: CreateResolversArgs) {
       [name: string]: {
         type?: string;
         bcms?: unknown;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolve?: any;
       };
     } = {};
@@ -156,22 +210,32 @@ export async function createResolvers(args: CreateResolversArgs) {
       resolvers[`Bcms${nameEncoded}`] = {
         bcms: {
           type: nameEncoded + 'Entry',
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           async resolve(source: any) {
-            const type = (source.internal.type as string)
-              .replace('Bcms', '')
-              .split(/(?=[A-Z])/)
-              .map((e) => e.toLowerCase())
-              .join('_');
             const target = JSON.parse(source.internal.content).bcms;
-            const output = JSON.parse(
-              JSON.stringify(
-                await most.cache.content.findOneInGroup(
-                  type,
-                  (e) => e._id === target._id,
-                ),
+            let outputString = JSON.stringify(
+              await most.content.entry.findOne(
+                target.templateName,
+                async (e) => e._id === target._id,
               ),
-            ) as BCMSEntryParsed;
+            );
+            const templateNames = StringUtility.allTextBetween(
+              outputString,
+              'templateName":"',
+              '",',
+            );
+            for (let i = 0; i < templateNames.length; i++) {
+              const tn = templateNames[i];
+              outputString = outputString.replace(
+                `templateName":"${tn}",`,
+                `templateName":"${tn}","__typename":"${toCamelCase(
+                  tn,
+                )}Entry","type":"${toCamelCase(tn)}Entry",`,
+              );
+            }
+            const output = JSON.parse(outputString) as BCMSEntryParsed;
+            resolveEntryPointerArray(output);
             for (const lng in output.content) {
               output.content[lng].forEach((e) => {
                 if (typeof e.value === 'object') {
