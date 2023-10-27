@@ -11,7 +11,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "rootDir": "./src",
-    "importsNotUsedAsValues": "error",
+    "preserveValueImports": false,
     "skipLibCheck": true
   },
   "include": ["src"]

@@ -1,8 +1,8 @@
 {
   "name": "gatsby-source-bcms",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "Implementation of the @becomes/cms-most for Gatsby framework.",
-  "author": "becomes.co",
+  "author": "BCMS",
   "license": "MIT",
   "main": "index.js",
   "scripts": {
@@ -16,33 +16,36 @@
     "unlink:sudo": "npm-tool --unlink --sudo",
     "lint": "eslint src/**/*"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@banez/npm-tool": "^1.1.0",
-    "@becomes/cms-client": "^3.2.0",
-    "@becomes/cms-most": "^2.3.6",
-    "@types/node": "^17.0.40",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "eslint": "^7.27.0",
-    "gatsby": "^4.15.2",
-    "prettier": "^2.3.0",
-    "react": "^18.1.0",
-    "react-dom": "^18.1.0",
-    "ts-node": "^10.8.1",
-    "tsconfig-paths": "^3.9.0",
-    "typescript": "^4.4.4"
+    "@banez/npm-tool": "^1.1.1",
+    "@becomes/cms-client": "^3.3.5",
+    "@becomes/cms-most": "^2.8.0",
+    "@types/node": "^20.8.9",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "eslint": "^8.52.0",
+    "gatsby": "^5.12.9",
+    "prettier": "^3.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.2.2"
   },
   "peerDependencies": {
-    "@becomes/cms-most": "^2.3.6",
-    "@becomes/cms-client": "^3.2.0"
+    "@becomes/cms-client": "^3.3.5",
+    "@becomes/cms-most": "^2.8.0",
+    "gatsby": "^5.12.9"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/becomesco/gatsby-source-bcms.git"
+    "url": "git+https://github.com/bcms/gatsby-source.git"
   },
   "bugs": {
-    "url": "https://github.com/becomesco/gatsby-source-bcms/issues"
+    "url": "https://github.com/bcms/gatsby-source/issues"
   },
-  "homepage": "https://github.com/becomesco/gatsby-source-bcms#readme"
+  "homepage": "https://github.com/bcms/gatsby-source#readme",
+  "dependencies": {
+    "@banez/string-utility": "^1.0.1"
+  }
 }
