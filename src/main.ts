@@ -10,6 +10,7 @@ export async function __createBcmsMost(config: BCMSMostConfig): Promise<void> {
   await most.content.pull();
   await most.media.pull();
   await most.typeConverter.pull();
+  await most.server.start({});
 }
 
 export function getBcmsMost(): BCMSMost {
