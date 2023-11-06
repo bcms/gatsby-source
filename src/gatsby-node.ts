@@ -12,6 +12,11 @@ import type {
 } from 'gatsby';
 import { getBcmsMost, __createBcmsMost } from './main';
 import { StringUtility } from '@banez/string-utility';
+import { createFS } from '@banez/fs';
+
+const fs = createFS({
+  base: process.cwd(),
+});
 
 function toCamelCase(s: string): string {
   return s
@@ -37,12 +42,19 @@ function toCamelCaseLower(s: string): string {
     .join('');
 }
 
+let bcmsConfig: BCMSMostConfig = null as never;
+
 export const onPreInit: <T>(
   data: T,
   config: BCMSMostConfig,
 ) => Promise<void> = async (_data, config) => {
   try {
-    await __createBcmsMost(config);
+    bcmsConfig = config;
+    await __createBcmsMost(bcmsConfig);
+    await fs.save(
+      'bcms.config.js',
+      `module.exports = ${JSON.stringify(config)}`,
+    );
   } catch (error) {
     console.error(error);
     process.exit(1);
@@ -261,4 +273,5 @@ export async function onPostBuild() {
   await most.imageProcessor.postBuild({
     buildOutput: ['public'],
   });
+  await most.server.stop();
 }
