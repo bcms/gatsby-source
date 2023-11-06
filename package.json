@@ -1,6 +1,6 @@
 {
   "name": "gatsby-source-bcms",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "Implementation of the @becomes/cms-most for Gatsby framework.",
   "author": "BCMS",
   "license": "MIT",
@@ -46,6 +46,7 @@
   },
   "homepage": "https://github.com/bcms/gatsby-source#readme",
   "dependencies": {
+    "@banez/fs": "^1.0.3",
     "@banez/string-utility": "^1.0.1"
   }
 }
