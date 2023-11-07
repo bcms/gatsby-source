@@ -30,7 +30,7 @@ const BCMSContentManager: React.FC<Props> = (props) => {
     >
       {props.items.map((_item, _itemIdx) => {
         return (
-          <>
+          <React.Fragment key={_itemIdx}>
             {_item instanceof Array ? (
               <>
                 {_item.map((item, itemIdx) => {
@@ -52,7 +52,7 @@ const BCMSContentManager: React.FC<Props> = (props) => {
                 nodeParser={props.nodeParser}
               />
             )}
-          </>
+          </React.Fragment>
         );
       })}
     </div>
