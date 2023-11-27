@@ -181,7 +181,8 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
   }
 };
 
-function resolveEntryPointerArray(obj: any) {
+function resolveEntryPointerArray(obj: any, level?: string) {
+  console.log(level);
   for (const key in obj) {
     if (typeof obj[key] === 'object') {
       if (
@@ -191,13 +192,22 @@ function resolveEntryPointerArray(obj: any) {
       ) {
         for (let i = 0; i < obj[key].length; i++) {
           const childObj = obj[key][i];
-          resolveEntryPointerArray(childObj);
+          resolveEntryPointerArray(childObj, `${level}.${key}[${i}]`);
           const mutated: any = {};
           mutated[toCamelCaseLower(childObj.templateName)] = childObj;
           obj[key][i] = mutated;
         }
       } else {
-        resolveEntryPointerArray(obj[key]);
+        if (obj[key].templateName) {
+          const buffer = obj[key];
+          console.log(`${level}.${key}`, { buffer });
+          const newKey = toCamelCaseLower(buffer.templateName);
+          obj[key] = {};
+          obj[key][`${newKey}`] = buffer;
+          resolveEntryPointerArray(obj[key][newKey], `${level}.${key}`);
+        } else {
+          resolveEntryPointerArray(obj[key], `${level}.${key}`);
+        }
       }
     }
   }
@@ -247,7 +257,8 @@ export async function createResolvers(args: CreateResolversArgs) {
               );
             }
             const output = JSON.parse(outputString) as BCMSEntryParsed;
-            resolveEntryPointerArray(output);
+            resolveEntryPointerArray(output, 'root');
+            console.log(JSON.stringify(output, null, 2));
             for (const lng in output.content) {
               output.content[lng].forEach((e) => {
                 if (typeof e.value === 'object') {
