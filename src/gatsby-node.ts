@@ -182,7 +182,6 @@ export const sourceNodes: GatsbyNode['sourceNodes'] = async ({
 };
 
 function resolveEntryPointerArray(obj: any, level?: string) {
-  console.log(level);
   for (const key in obj) {
     if (typeof obj[key] === 'object') {
       if (
@@ -200,7 +199,6 @@ function resolveEntryPointerArray(obj: any, level?: string) {
       } else {
         if (obj[key].templateName) {
           const buffer = obj[key];
-          console.log(`${level}.${key}`, { buffer });
           const newKey = toCamelCaseLower(buffer.templateName);
           obj[key] = {};
           obj[key][`${newKey}`] = buffer;
@@ -258,7 +256,6 @@ export async function createResolvers(args: CreateResolversArgs) {
             }
             const output = JSON.parse(outputString) as BCMSEntryParsed;
             resolveEntryPointerArray(output, 'root');
-            console.log(JSON.stringify(output, null, 2));
             for (const lng in output.content) {
               output.content[lng].forEach((e) => {
                 if (typeof e.value === 'object') {
